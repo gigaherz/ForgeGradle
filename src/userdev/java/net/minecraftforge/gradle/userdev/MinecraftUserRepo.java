@@ -61,6 +61,7 @@ import net.minecraftforge.gradle.userdev.tasks.RenameJar;
 import net.minecraftforge.gradle.userdev.tasks.RenameJarInPlace;
 
 public class MinecraftUserRepo extends BaseRepo {
+    public static final String USERDEVPACKED = "userdevpacked.";
     private final Project project;
     private final String GROUP;
     private final String NAME;
@@ -146,7 +147,7 @@ public class MinecraftUserRepo extends BaseRepo {
     }
 
     public String getDependencyString() {
-        String ret = GROUP + ':' + NAME + ':' + VERSION;
+        String ret = USERDEVPACKED + GROUP + ':' + NAME + ':' + VERSION;
         if (MAPPING != null)
             ret += "_mapped_" + MAPPING;
         if (AT_HASH != null)
@@ -213,6 +214,12 @@ public class MinecraftUserRepo extends BaseRepo {
     public File findFile(ArtifactIdentifier artifact) throws IOException {
         String group = artifact.getGroup();
         String rand = "";
+        boolean isPacked = false;
+        if (group.contains(USERDEVPACKED))
+        {
+            isPacked = true;
+            group = group.replace(USERDEVPACKED, "");
+        }
         if (group.startsWith("rnd.")) {
             rand = group.substring(0, group.indexOf('.', 4));
             group = group.substring(group.indexOf('.', 4) + 1);
@@ -241,7 +248,7 @@ public class MinecraftUserRepo extends BaseRepo {
         debug("  " + REPO_NAME + " Request: " + artifact.getGroup() + ":" + artifact.getName() + ":" + version + ":" + classifier + "@" + ext + " Mapping: " + mappings);
 
         if ("pom".equals(ext)) {
-            return findPom(mappings, rand);
+            return findPom(mappings, rand, isPacked);
         } else {
             switch (classifier) {
                 case "":        return findRaw(mappings);
@@ -280,7 +287,7 @@ public class MinecraftUserRepo extends BaseRepo {
         return Utils.downloadMaven(project, Artifact.from(desc), false);
     }
 
-    private File findPom(String mapping, String rand) throws IOException {
+    private File findPom(String mapping, String rand, boolean isPacked) throws IOException {
         getParents(); //Download parents
         if (mcp == null || mapping == null)
             return null;
@@ -291,13 +298,15 @@ public class MinecraftUserRepo extends BaseRepo {
             pom = cacheMapped(mapping, rand + "pom");
         }
 
+        String packed = isPacked ? USERDEVPACKED : "";
+
         debug("  Finding pom: " + pom);
         HashStore cache = commonHash(null).load(new File(pom.getAbsolutePath() + ".input"));
 
         if (!cache.isSame() || !pom.exists()) {
-            POMBuilder builder = new POMBuilder(rand + GROUP, NAME, getVersionWithAT(mapping) );
+            POMBuilder builder = new POMBuilder(rand + packed + GROUP, NAME, getVersionWithAT(mapping) );
 
-            builder.dependencies().add(rand + GROUP + ':' + NAME + ':' + getVersionWithAT(mapping), "compile");
+            builder.dependencies().add(rand + packed + GROUP + ':' + NAME + ':' + getVersionWithAT(mapping), "compile");
             builder.dependencies().add("net.minecraft:client:" + mcp.getMCVersion(), "compile").withClassifier("extra"); //Client as that has all deps as external list
             builder.dependencies().add("net.minecraft:client:" + mcp.getMCVersion(), "compile").withClassifier("data");
             mcp.getLibraries().forEach(e -> builder.dependencies().add(e, "compile"));
